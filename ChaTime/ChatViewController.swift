@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  ChatViewController.swift
 //  ChaTime
 //
 //  Created by Seiya Kobayashi on 2018/06/13.
@@ -11,8 +11,9 @@ import JSQMessagesViewController
 
 class ChatViewController: JSQMessagesViewController {
 
-    var messages = [JSQMessage]()
+    var messages = [JSQMessage]()       // Array that stores messages
     
+    // Define message bubbles' colors (Outgoing -> blue, Incoming -> light blue)
     lazy var outgoingBubble: JSQMessagesBubbleImage = {
         return JSQMessagesBubbleImageFactory()!.outgoingMessagesBubbleImage(with: UIColor(red: 85/255, green: 120/255, blue: 255/255, alpha: 1))
     }()
@@ -25,12 +26,14 @@ class ChatViewController: JSQMessagesViewController {
         
         let defaults = UserDefaults.standard
         
+        // If the user already exists
         if  let id = defaults.string(forKey: "jsq_id"),
             let name = defaults.string(forKey: "jsq_name")
         {
             senderId = id
             senderDisplayName = name
         }
+        // It it's a new user
         else
         {
             senderId = String(arc4random_uniform(999999))
@@ -44,16 +47,18 @@ class ChatViewController: JSQMessagesViewController {
         
         title = "Chat: \(senderDisplayName!)"
         
+        // If user taps the navigation bar, show edit screen
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(showDisplayNameDialog))
         tapGesture.numberOfTapsRequired = 1
-        
         navigationController?.navigationBar.addGestureRecognizer(tapGesture)
         
+        // Hide leftBarButton and avatar images
         inputToolbar.contentView.leftBarButtonItem = nil
         collectionView.collectionViewLayout.incomingAvatarViewSize = CGSize.zero
         collectionView.collectionViewLayout.outgoingAvatarViewSize = CGSize.zero
         
-        let query = Constants.refs.databaseChats.queryLimited(toLast: 10)
+        // Show recent 12 messages on firebase, and append new message to the array of messages
+        let query = Constants.refs.databaseChats.queryLimited(toLast: 12)
         
         _ = query.observe(.childAdded, with: { [weak self] snapshot in
             if  let data        = snapshot.value as? [String: String],
@@ -71,11 +76,11 @@ class ChatViewController: JSQMessagesViewController {
         })
     }
     
-    // Set username
+    // Set/Change username
     @objc func showDisplayNameDialog()
     {
         let defaults = UserDefaults.standard
-        let alert = UIAlertController(title: "Your Display Name", message: "Before starting chatting, please choose a display name. Others will see this name when you send chat messages. You can change your display name again by tapping the navigation bar.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Your Display Name", message: "Please set a display name for chatting. You can change your name again by tapping the navigation bar.", preferredStyle: .alert)
 
         alert.addTextField { textField in
             if let name = defaults.string(forKey: "jsq_name")
@@ -84,7 +89,7 @@ class ChatViewController: JSQMessagesViewController {
             }
             else
             {
-                let names = ["Ford", "Arthur", "Zaphod", "Trillian", "Slartibartfast", "Humma Kavula", "Deep Thought"]
+                let names = ["Anonymous Bulldog", "Anonymous Ant", "User#0", "Fat Man"]
                 textField.text = names[Int(arc4random_uniform(UInt32(names.count)))]
             }
         }
@@ -103,37 +108,43 @@ class ChatViewController: JSQMessagesViewController {
         present(alert, animated: true, completion: nil)
     }
     
-    override func collectionView(_ collectionView: JSQMessagesCollectionView!, messageDataForItemAt indexPath: IndexPath!) -> JSQMessageData!
-    {
+    // Return a particular message given its index
+    override func collectionView(_ collectionView: JSQMessagesCollectionView!, messageDataForItemAt indexPath: IndexPath!)
+    -> JSQMessageData! {
         return messages[indexPath.item]
     }
     
-    override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int
-    {
+    // Return the total amount of messages
+    override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int)
+    -> Int {
         return messages.count
     }
     
-    override func collectionView(_ collectionView: JSQMessagesCollectionView!, messageBubbleImageDataForItemAt indexPath: IndexPath!) -> JSQMessageBubbleImageDataSource!
-    {
+    // Set bubble color based on senderId
+    override func collectionView(_ collectionView: JSQMessagesCollectionView!, messageBubbleImageDataForItemAt indexPath: IndexPath!)
+    -> JSQMessageBubbleImageDataSource! {
         return messages[indexPath.item].senderId == senderId ? outgoingBubble : incomingBubble
     }
     
-    override func collectionView(_ collectionView: JSQMessagesCollectionView!, avatarImageDataForItemAt indexPath: IndexPath!) -> JSQMessageAvatarImageDataSource!
-    {
+    // Hide avatar image
+    override func collectionView(_ collectionView: JSQMessagesCollectionView!, avatarImageDataForItemAt indexPath: IndexPath!)
+    -> JSQMessageAvatarImageDataSource! {
         return nil
     }
     
-    override func collectionView(_ collectionView: JSQMessagesCollectionView!, attributedTextForMessageBubbleTopLabelAt indexPath: IndexPath!) -> NSAttributedString!
-    {
+    // Display username on top of each message bubble, except the messages of sender himself/herself
+    override func collectionView(_ collectionView: JSQMessagesCollectionView!, attributedTextForMessageBubbleTopLabelAt indexPath: IndexPath!)
+    -> NSAttributedString! {
         return messages[indexPath.item].senderId == senderId ? nil : NSAttributedString(string: messages[indexPath.item].senderDisplayName)
     }
     
-    override func collectionView(_ collectionView: JSQMessagesCollectionView!, layout collectionViewLayout: JSQMessagesCollectionViewFlowLayout!, heightForMessageBubbleTopLabelAt indexPath: IndexPath!) -> CGFloat
-    {
+    override func collectionView(_ collectionView: JSQMessagesCollectionView!, layout collectionViewLayout: JSQMessagesCollectionViewFlowLayout!,
+                                 heightForMessageBubbleTopLabelAt indexPath: IndexPath!)
+                                 -> CGFloat {
         return messages[indexPath.item].senderId == senderId ? 0 : 15
     }
     
-    // When "Send" button pressed, send that to Firebase
+    // When "Send" button pressed, send message to Firebase
     override func didPressSend(_ button: UIButton!, withMessageText text: String!, senderId: String!, senderDisplayName: String!, date: Date!)
     {
         let ref = Constants.refs.databaseChats.childByAutoId()
@@ -142,12 +153,4 @@ class ChatViewController: JSQMessagesViewController {
         ref.setValue(message)
         finishSendingMessage()
     }
-    
-    /*
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
-    */
 }
-
